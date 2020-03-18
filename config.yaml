@@ -20,8 +20,7 @@ release: 87
 txome: /dataVolume/storage/Homo_sapiens/grch38/txome/Homo_sapiens.GRCh38.cdna.all.fa.gz
 genome: /dataVolume/storage/Homo_sapiens/grch38/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa
 bed: /dataVolume/storage/Homo_sapiens/grch38_tran/Homo_sapiens.GRCh38.87.bed
-# exonic_bed: /dataVolume/storage/Homo_sapiens/grch38_tran/Homo_sapiens.GRCh38.87.exonic.bed
-exonic_bed: test.bed
+exonic_bed: /dataVolume/storage/Homo_sapiens/grch38_tran/Homo_sapiens.GRCh38.87.exonic.bed
 bin_size: 500000
 gtf: /dataVolume/storage/Homo_sapiens/grch38_tran/Homo_sapiens.GRCh38.87.gtf 
 repeat_mask: /dataVolume/storage/Homo_sapiens/grch38_tran/Homo_sapiens.GRCh38.87.rmsk.gtf
