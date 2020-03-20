@@ -97,7 +97,8 @@ rule all:
 		outputdir + "seurat/unfiltered_seu.rds",
 		# dbtss_output,
 		jbrowse_output,
-		split_output
+		split_output,
+		copywriter_output = outputdir + "Rout/copywriter" + "/segment.Rdata",
 		# loom_file = outputdir + "velocyto/" + os.path.basename(proj_dir) + ".loom"
 		# velocyto_seu = outputdir + "velocyto/" + "unfiltered_seu.rds"
 
@@ -438,7 +439,7 @@ rule HISAT2PE:
 		fastq1 = outputdir + "FASTQtrimmed/{sample}_" + str(config["fqext1"]) + "_val_1.fq.gz" if config["run_trimming"] else FASTQdir + "{sample}_" + str(config["fqext1"]) + "." + str(config["fqsuffix"]) + ".gz",
 		fastq2 = outputdir + "FASTQtrimmed/{sample}_" + str(config["fqext2"]) + "_val_2.fq.gz" if config["run_trimming"] else FASTQdir + "{sample}_" + str(config["fqext2"]) + "." + str(config["fqsuffix"]) + ".gz"
 	output:
-		bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.out.bam"
+		bam = temp(outputdir + "HISAT2/{sample}/{sample}_Aligned.out.bam")
 	threads:
 		config["ncores"]
 	log:
@@ -581,12 +582,14 @@ rule CopywriteR:
 		outputdir + "benchmarks/copywriter.txt"
 	params:
 	  bin_size = config["bin_size"],
-	  copywriter_output_dir = proj_dir + "output/copywriter",
-		exonic_bed = config["exonic_bed"]
+	  copywriter_output_dir = proj_dir + "/output/copywriter",
+		threads = config["ncores"],
+		samples_pattern = "sortedByCoord.gdna.bam",
+		input_dir = outputdir + "HISAT2"
 	conda:
 		Renv
 	shell:
-		'''{Rbin} CMD BATCH --no-restore --no-save "--args copywriter_output_dir='{params.copywriter_output_dir}' bin_size='{params.bin_size}' sample_files = '{input.sample_files}' copywriter_capture_regions='{params.exonic_bed}'" {input.script} {log}'''
+		'''{Rbin} CMD BATCH --no-restore --no-save "--args threads='{threads}' copywriter_output_dir='{params.copywriter_output_dir}' bin_size='{params.bin_size}' input_dir='{params.input_dir}' samples_pattern='{params.samples_pattern}'" {input.script} {log}'''
 
 ## ------------------------------------------------------------------------------------ ##
 ## Stringtie
