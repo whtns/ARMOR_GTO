@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+# !/usr/bin/env python
 
 # script generates bed file that scpecifies regions with coverage below defined level
 # usage: samtools depth <file.bam> | bed_from_areas_covered_above_N.py N
@@ -13,10 +13,12 @@ if(len(sys.argv) < 1):
 	print("usage: samtools depth <file.bam> | bed_from_areas_covered_above_N.py N")
 	exit(0)
 
-N = int(sys.argv[1])
+depth_in = open(sys.argv[1], "r+")
+
+N = int(sys.argv[2])
 
 while(1): # read only first few lines, until you get first position covered below required level
-	line = sys.stdin.readline()
+	line = depth_in.readline()
 	if not line:
 		break
 	x = line.rstrip().split("\t")
@@ -28,7 +30,7 @@ while(1): # read only first few lines, until you get first position covered belo
 		break
 
 while (1):
-	line = sys.stdin.readline()
+	line = depth_in.readline()
 	if not line:
 		break
 	x = line.rstrip().split("\t")
