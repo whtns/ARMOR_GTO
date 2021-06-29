@@ -66,6 +66,7 @@ else:
 Rbin = config["Rbin"]
 
 # The config.yaml files determines which steps should be performed
+
 def stringtie_output(wildcards):
 	input = []
 	input.extend(expand(outputdir + "stringtie/{sample}/{sample}.gtf", sample = samples.names[samples.type == 'PE'].values.tolist()))
@@ -84,7 +85,7 @@ def jbrowse_output(wildcards):
   
 def split_output(wildcards):
 	input = []
-	input.extend(expand(outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.gdna.bam", sample = samples.names[samples.type == 'PE'].values.tolist()))
+	input.extend(expand(outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bam", sample = samples.names[samples.type == 'PE'].values.tolist()))
 	return input
 
 def bigwig_output(wildcards):
@@ -93,6 +94,13 @@ def bigwig_output(wildcards):
   input.extend(expand(outputdir + "HISAT2/{sample}/{sample}-cdna_Aligned.sortedByCoord.cdna.all.bw", sample = samples.names[samples.type == 'PE'].values.tolist()))
   input.extend(expand(outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.all.bw", sample = samples.names[samples.type == 'PE'].values.tolist()))
   return input
+
+def read_dist_output(wildcards):
+	input = []
+	input.extend(expand(outputdir + "HISAT2/{sample}/{sample}_all.read_distribution.json", sample = samples.names[samples.type == 'PE'].values.tolist()))
+	input.extend(expand(outputdir + "HISAT2/{sample}/{sample}_gdna.read_distribution.json", sample = samples.names[samples.type == 'PE'].values.tolist()))
+	input.extend(expand(outputdir + "HISAT2/{sample}/{sample}_cdna.read_distribution.json", sample = samples.names[samples.type == 'PE'].values.tolist()))
+	return input
 
 	
 ## ------------------------------------------------------------------------------------ ##
@@ -103,11 +111,14 @@ rule all:
 	input:
 		outputdir + "MultiQC/multiqc_report.html",
 		# outputdir + "seurat/unfiltered_seu.rds",
-		# vcf = outputdir + "genotyped/all.vcf.gz",
-		bigwig_output
+		bigwig_output,
+		split_output,
+		read_dist_output,
+		vcf = outputdir + "genotyped/all.vcf.gz",
+		# annotated_vcf = outputdir + "genotyped/variants.annotated.bcf",
+		# plugins = directory("resources/vep/plugins")
 		# dbtss_output,
 		# jbrowse_output,
-		# split_output,
 		# copywriter_output = outputdir + "Rout/copywriter" + "/segment.Rdata",
 		# loom_file = outputdir + "velocyto/" + os.path.basename(proj_dir) + ".loom"
 		# velocyto_seu = outputdir + "velocyto/" + "unfiltered_seu.rds"
@@ -364,6 +375,7 @@ def multiqc_input(wildcards):
 		input.extend(expand(outputdir + "STAR/{sample}/{sample}_Aligned.sortedByCoord.out.bam.bai", sample = samples.names.values.tolist()))
 	if config["run_HISAT2"]:
 		input.extend(expand(outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.bam.bai", sample = samples.names.values.tolist()))
+	# input.extend(expand(outputdir + "HISAT2/{sample}/{sample}-cdna.rnaseq_metrics.txt", sample = samples.names.values.tolist()))
 	return input
 
 ## Determine the input directories for MultiQC depending on the config file
@@ -522,7 +534,7 @@ rule bigwighisat2:
 	  "megadepth {input.bam} --threads {threads} --bigwig --prefix {params.prefix}"
 
 ## Convert gdna BAM files to bigWig
-rule bigwigGDNA:
+rule bigwiggdna:
 	input:
 		bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bam"
 	output:
@@ -562,56 +574,55 @@ rule bigwigcdna:
 ## Split Intronic/Exonic
 ## ------------------------------------------------------------------------------------ ##
 # Assign Reads to cDNA/gDNA based on exonic overlap
-rule samdepth:
-	input:
-		bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.bam",
-	output:
-	  depth_out = outputdir + "HISAT2/{sample}/{sample}_output.txt",
-	log:
-		outputdir + "logs/bedtools_{sample}.log"
-	benchmark:
-		outputdir + "benchmarks/bedtools_{sample}.txt"
-	threads:
-		config["ncores"]
-	params:
-	  exonic_bed = config["exonic_bed"],
-	  n_coverage = config["n_coverage"],
-	  chrom_sizes = config["chrom_sizes"]
-	conda:
-		"envs/environment.yaml"
-	shell:
-		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
-		"bedtools intersect -g {params.chrom_sizes} -sorted -wa -v -abam {input.bam} -b {params.exonic_bed} | "
-		"samtools depth /dev/stdin > {output.depth_out}"
-		
-rule bed_below_n:
-	input:
-		depth_out = outputdir + "HISAT2/{sample}/{sample}_output.txt",
-		script = "scripts/bed_from_areas_covered_N_or_below.py"
-	output:
-	  bed_below_n = outputdir + "HISAT2/{sample}/{sample}_below_n.bed",
-	log:
-		outputdir + "logs/bedtools_{sample}.log"
-	benchmark:
-		outputdir + "benchmarks/bedtools_{sample}.txt"
-	threads:
-		config["ncores"]
-	params:
-	  exonic_bed = config["exonic_bed"],
-	  n_coverage = config["n_coverage"],
-	  chrom_sizes = config["chrom_sizes"]
-	conda:
-		"envs/environment.yaml"
-	shell:
-	  "python {input.script} {input.depth_out} {params.n_coverage} > {output.bed_below_n}"
+# rule samdepth:
+# 	input:
+# 		bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.bam",
+# 	output:
+# 	  depth_out = outputdir + "HISAT2/{sample}/{sample}_output.txt",
+# 	log:
+# 		outputdir + "logs/bedtools_{sample}.log"
+# 	benchmark:
+# 		outputdir + "benchmarks/bedtools_{sample}.txt"
+# 	threads:
+# 		config["ncores"]
+# 	params:
+# 	  exonic_bed = config["exonic_bed"],
+# 	  n_coverage = config["n_coverage"],
+# 	  chrom_sizes = config["chrom_sizes"]
+# 	conda:
+# 		"envs/environment.yaml"
+# 	shell:
+# 		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
+# 		"bedtools intersect -g {params.chrom_sizes} -sorted -wa -v -abam {input.bam} -b {params.exonic_bed} | "
+# 		"samtools depth /dev/stdin > {output.depth_out}"
+# 		
+# rule bed_below_n:
+# 	input:
+# 		depth_out = outputdir + "HISAT2/{sample}/{sample}_output.txt",
+# 		script = "scripts/bed_from_areas_covered_N_or_below.py"
+# 	output:
+# 	  bed_below_n = outputdir + "HISAT2/{sample}/{sample}_below_n.bed",
+# 	log:
+# 		outputdir + "logs/bedtools_{sample}.log"
+# 	benchmark:
+# 		outputdir + "benchmarks/bedtools_{sample}.txt"
+# 	threads:
+# 		config["ncores"]
+# 	params:
+# 	  exonic_bed = config["exonic_bed"],
+# 	  n_coverage = config["n_coverage"],
+# 	  chrom_sizes = config["chrom_sizes"]
+# 	conda:
+# 		"envs/environment.yaml"
+# 	shell:
+# 	  "python {input.script} {input.depth_out} {params.n_coverage} > {output.bed_below_n}"
 		
 rule split_exonic:
 	input:
 		bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.bam",
-		bed_below_n = outputdir + "HISAT2/{sample}/{sample}_below_n.bed"
 	output:
-		gdna_bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.gdna.bam",
-		cdna_bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.cdna.bam"
+		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna_w_peaks.bam",
+		cdna_bam = outputdir + "HISAT2/{sample}/{sample}-cdna_Aligned.sortedByCoord.cdna.bam"
 	log:
 		outputdir + "logs/bedtools_{sample}.log"
 	benchmark:
@@ -626,16 +637,74 @@ rule split_exonic:
 		"envs/environment.yaml"
 	shell:
 		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
-		"bedtools intersect -g {params.chrom_sizes} -sorted -wa -abam {input.bam} -b {input.bed_below_n} > {output.gdna_bam}; "
-		"bedtools intersect -g {params.chrom_sizes} -sorted -wa -abam {input.bam} -b {params.exonic_bed} 2> {log} > {output.cdna_bam}"
+		"bedtools intersect -g {params.chrom_sizes} -wa -v -abam {input.bam} -b {params.exonic_bed} > {output.gdna_bam}; "
+		"bedtools intersect -g {params.chrom_sizes} -wa -abam {input.bam} -b {params.exonic_bed} 2> {log} > {output.cdna_bam}"
+
+rule callpeaks_gdna:
+	input:
+		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna_w_peaks.bam"
+	output:
+		gdna_broadpeaks = outputdir + "HISAT2/{sample}/NA_peaks.broadPeak"
+	log:
+		outputdir + "logs/macs2_{sample}.log"
+	benchmark:
+		outputdir + "benchmarks/macs2_{sample}.txt"
+	threads:
+		config["ncores"]
+	params:
+	  outdir = outputdir + "HISAT2/{sample}",
+	conda:
+		"envs/environment.yaml"
+	shell:
+		"echo 'macs2 version:\n' > {log}; macs2 --version >> {log}; "
+		"macs2 callpeak --nomodel --extsize 147 -t {input.gdna_bam} -f BAM --broad --outdir {params.outdir}"
+
+rule sortpeaks_gdna:
+	input:
+		gdna_broadpeaks = outputdir + "HISAT2/{sample}/NA_peaks.broadPeak"
+	output:
+		gdna_peak_bed = outputdir + "HISAT2/{sample}/{sample}-gdna.sorted.bed"
+	log:
+		outputdir + "logs/bedtools_{sample}.log"
+	benchmark:
+		outputdir + "benchmarks/bedtools_{sample}.txt"
+	threads:
+		config["ncores"]
+	params:
+	  outdir = outputdir + "HISAT2/{sample}",
+	conda:
+		"envs/environment.yaml"
+	shell:
+		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
+		"bedtools sort -i {input.gdna_broadpeaks} > {output.gdna_peak_bed}"
+
+rule exclude_gdna_peaks:
+	input:
+		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna_w_peaks.bam",
+		gdna_peak_bed = outputdir + "HISAT2/{sample}/{sample}-gdna.sorted.bed"
+	output:
+		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bam",
+	log:
+		outputdir + "logs/bedtools_{sample}.log"
+	benchmark:
+		outputdir + "benchmarks/bedtools_{sample}.txt"
+	threads:
+		config["ncores"]
+	params:
+	  chrom_sizes = config["chrom_sizes"]
+	conda:
+		"envs/environment.yaml"
+	shell:
+		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
+		"bedtools intersect -wa -v -abam {input.gdna_bam} -b {input.gdna_peak_bed} > {output.gdna_bam}"
 
 rule split_bamindex:
 	input:
-		gdna_bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.gdna.bam",
-		cdna_bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.cdna.bam"
+		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bam",
+		cdna_bam = outputdir + "HISAT2/{sample}/{sample}-cdna_Aligned.sortedByCoord.cdna.bam",
 	output:
-		gdna_bai = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.gdna.bai",
-		cdna_bai = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.cdna.bai"
+		gdna_bai = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bai",
+		cdna_bai = outputdir + "HISAT2/{sample}/{sample}-cdna_Aligned.sortedByCoord.cdna.bai",
 	log:
 		outputdir + "logs/samtools_index_{sample}.log"
 	benchmark:
@@ -646,6 +715,82 @@ rule split_bamindex:
 		"echo 'samtools version:\n' > {log}; samtools --version >> {log}; "
 		"samtools index {input.gdna_bam}; "
 		"samtools index {input.cdna_bam}"
+		
+rule compute_read_distribution:
+	input:
+	  all_bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.bam",
+	output:
+		all_read_dist = outputdir + "HISAT2/{sample}/{sample}_all.read_distribution.json",
+	log:
+		outputdir + "logs/rseqc_{sample}.log"
+	benchmark:
+		outputdir + "benchmarks/rseqc_index_{sample}.txt"
+	threads:
+	  config["ncores"]
+	params:
+	  gtf = config["gtf"]
+	conda:
+		"envs/environment.yaml"
+	shell:
+		"bamstats -c 1 -a {params.gtf} -i {input.all_bam} -o {output.all_read_dist}"
+
+rule compute_read_distribution_gdna:
+	input:
+		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bam",
+	output:
+		gdna_read_dist = outputdir + "HISAT2/{sample}/{sample}_gdna.read_distribution.json",
+	log:
+		outputdir + "logs/rseqc_{sample}.log"
+	benchmark:
+		outputdir + "benchmarks/rseqc_index_{sample}.txt"
+	params:
+	  gtf = config["gtf"]
+	conda:
+		"envs/environment.yaml"
+	shell:
+		"bamstats -c 1 -a {params.gtf} -i {input.gdna_bam} -o {output.gdna_read_dist}"
+		
+rule compute_read_distribution_cdna:
+	input:
+		cdna_bam = outputdir + "HISAT2/{sample}/{sample}-cdna_Aligned.sortedByCoord.cdna.bam",
+	output:
+		cdna_read_dist = outputdir + "HISAT2/{sample}/{sample}_cdna.read_distribution.json",
+	log:
+		outputdir + "logs/rseqc_{sample}.log"
+	benchmark:
+		outputdir + "benchmarks/rseqc_index_{sample}.txt"
+	params:
+	  gtf = config["gtf"]
+	conda:
+		"envs/environment.yaml"
+	shell:
+		"bamstats -c 1 -a {params.gtf} -i {input.cdna_bam} -o {output.cdna_read_dist}"
+		
+rule alignment_summary:
+    input:
+        # BAM aligned, splicing-aware, to reference genome
+        bam = outputdir + "HISAT2/{sample}/{sample}-cdna_Aligned.sortedByCoord.cdna.bam",
+        # Annotation file containing transcript, gene, and exon data
+        refflat="/dataVolume/storage/Homo_sapiens/grch38_tran/Homo_sapiens.GRCh38.87.refFlat"
+    output:
+        outputdir + "HISAT2/{sample}/{sample}-cdna.rnaseq_metrics.txt"
+    params:
+        # strand is optional (defaults to NONE) and pertains to the library preparation
+        # options are FIRST_READ_TRANSCRIPTION_STRAND, SECOND_READ_TRANSCRIPTION_STRAND, and NONE
+        strand="NONE",
+        # optional additional parameters, for example,
+        extra="VALIDATION_STRINGENCY=STRICT"
+    log:
+        "logs/picard/rnaseq-metrics/{sample}.log"
+    # optional specification of memory usage of the JVM that snakemake will respect with global
+    # resource restrictions (https://snakemake.readthedocs.io/en/latest/snakefiles/rules.html#resources)
+    # and which can be used to request RAM during cluster job submission as `{resources.mem_mb}`:
+    # https://snakemake.readthedocs.io/en/latest/executing/cluster.html#job-properties
+    resources:
+        mem_mb=1024
+    wrapper:
+        "0.76.0/bio/picard/collectrnaseqmetrics"
+  
 
 ## ------------------------------------------------------------------------------------ ##
 ## CopywriteR
@@ -938,6 +1083,7 @@ rule velocyto_seurat:
 ## ------------------------------------------------------------------------------------ ##
 ## GATK
 ## ------------------------------------------------------------------------------------ ##
+# output = outputdir + "genotyped/all.vcf.gz"
 
 include: "rules/calling.smk"
 

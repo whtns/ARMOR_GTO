@@ -130,7 +130,7 @@ run_genebodycoverage: False
 
 params:
   gatk:
-    HaplotypeCaller: "--intervals /dataVolume/storage/Homo_sapiens/grch38_tran/Homo_sapiens.GRCh38.87.exonic.bed"
+    HaplotypeCaller: "--intervals Homo_sapiens.GRCh38.87.exonic.autosomes.bed"
     BaseRecalibrator: ""
     GenotypeGVCFs: ""
     VariantRecalibrator: ""

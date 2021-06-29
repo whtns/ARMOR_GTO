@@ -29,7 +29,7 @@ rule picard_readgroups:
             -RGLB lib1 \
             -RGPL ILLUMINA \
             -RGPU unit1 \
-            -RGSM 20
+            -RGSM {wildcards.sample}
         """
 
 ## Index bam files
@@ -43,7 +43,7 @@ rule bamindexpicard:
 	benchmark:
 		outputdir + "benchmarks/samtools_index_{sample}.txt"
 	conda:
-		"envs/environment.yaml"
+		"../envs/environment.yaml"
 	shell:
 		"echo 'samtools version:\n' > {log}; samtools --version >> {log}; "
 		"samtools index {input.bam}"
@@ -65,30 +65,38 @@ rule call_variants:
         "echo {input.bai}; "
         "gatk HaplotypeCaller {params.extra} --reference {input.ref} --input {input.bam} --output {output.gvcf} -ERC GVCF"
 
-rule combine_calls:
+        
+rule genomics_db_import:
     input:
-        ref=config["genome"],
         gvcfs=expand("called/{sample}.g.vcf.gz", sample = samples.names.values.tolist())
     output:
-        gvcf="called/all.g.vcf.gz"
+        db=directory("called/db"),
     log:
-        "logs/gatk/combinegvcfs.log"
-    wrapper:
-        "0.27.1/bio/gatk/combinegvcfs"
-
-
-rule genotype_variants:
-    input:
-        ref=config["genome"],
-        gvcf="called/all.g.vcf.gz"
-    output:
-        vcf=temp("genotyped/all.vcf.gz")
+        "logs/gatk/genomicsdb.log"
     params:
-        extra=config["params"]["gatk"]["GenotypeGVCFs"]
+        intervals="1",
+        db_action="create", # optional
+        extra="",  # optional
+        java_opts="",  # optional
+    resources:
+        mem_mb=2048
+    wrapper:
+        "v0.75.0/bio/gatk/genomicsdbimport"
+        
+rule genotype_gvcfs:
+    input:
+        genomicsdb="called/db",  # combined gvcf over multiple samples
+        ref=config["genome"]
+    output:
+        vcf="genotyped/all.vcf.gz"
     log:
         "logs/gatk/genotypegvcfs.log"
+    params:
+        extra=config["params"]["gatk"]["GenotypeGVCFs"]
+    resources:
+        mem_mb=1024
     wrapper:
-        "0.27.1/bio/gatk/genotypegvcfs"
+        "v0.75.0/bio/gatk/genotypegvcfs"
 
 
 rule merge_variants:
@@ -101,3 +109,35 @@ rule merge_variants:
         "logs/picard/merge-genotyped.log"
     wrapper:
         "0.40.2/bio/picard/mergevcfs"
+        
+rule download_vep_plugins:
+    output:
+        directory("resources/vep/plugins")
+    params:
+        release=100
+    wrapper:
+        "v0.75.0/bio/vep/plugins"
+        
+rule annotate_variants:
+    input:
+        calls=outputdir + "genotyped/all.vcf.gz",  # .vcf, .vcf.gz or .bcf
+        cache="/dataVolume/.vep/homo_sapiens/102_GRCh37", # can be omitted if fasta and gff are specified
+        plugins="resources/vep/plugins",
+        # optionally add reference genome fasta
+        # fasta="genome.fasta",
+        # fai="genome.fasta.fai", # fasta index
+        # gff="annotation.gff",
+        # csi="annotation.gff.csi", # tabix index
+    output:
+        calls = outputdir + "genotyped/variants.annotated.bcf", # .vcf, .vcf.gz or .bcf
+        stats = outputdir + "genotyped/variants.html"
+    params:
+        # Pass a list of plugins to use, see https://www.ensembl.org/info/docs/tools/vep/script/vep_plugins.html
+        # Plugin args can be added as well, e.g. via an entry "MyPlugin,1,FOO", see docs.
+        plugins=["LoFtool"],
+        extra="--everything"  # optional: extra arguments
+    log:
+        "logs/vep/annotate.log"
+    threads: 4
+    wrapper:
+        "v0.75.0/bio/vep/annotate"
