@@ -114,12 +114,12 @@ rule all:
 		bigwig_output,
 		split_output,
 		read_dist_output,
-		vcf = outputdir + "genotyped/all.vcf.gz",
+		# vcf = outputdir + "genotyped/all.vcf.gz",
 		# annotated_vcf = outputdir + "genotyped/variants.annotated.bcf",
 		# plugins = directory("resources/vep/plugins")
 		# dbtss_output,
 		# jbrowse_output,
-		# copywriter_output = outputdir + "Rout/copywriter" + "/segment.Rdata",
+		copywriter_output = outputdir + "Rout/copywriter" + "/segment.Rdata",
 		# loom_file = outputdir + "velocyto/" + os.path.basename(proj_dir) + ".loom"
 		# velocyto_seu = outputdir + "velocyto/" + "unfiltered_seu.rds"
 
@@ -805,7 +805,7 @@ def human_readable(bin_size):
 rule CopywriteR:
 	input:
 	  outputdir + "Rout/pkginstall_state.txt",
-	  sample_files = expand(outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.gdna.bam", sample = samples.names.values.tolist()),
+	  sample_files = expand(outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bam", sample = samples.names.values.tolist()),
 	  script = "scripts/run_copywriter.R"
 	output:
 		outputdir + "Rout/copywriter" + "/segment.Rdata"
