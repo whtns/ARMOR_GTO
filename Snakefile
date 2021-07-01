@@ -574,48 +574,48 @@ rule bigwigcdna:
 ## Split Intronic/Exonic
 ## ------------------------------------------------------------------------------------ ##
 # Assign Reads to cDNA/gDNA based on exonic overlap
-# rule samdepth:
-# 	input:
-# 		bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.bam",
-# 	output:
-# 	  depth_out = outputdir + "HISAT2/{sample}/{sample}_output.txt",
-# 	log:
-# 		outputdir + "logs/bedtools_{sample}.log"
-# 	benchmark:
-# 		outputdir + "benchmarks/bedtools_{sample}.txt"
-# 	threads:
-# 		config["ncores"]
-# 	params:
-# 	  exonic_bed = config["exonic_bed"],
-# 	  n_coverage = config["n_coverage"],
-# 	  chrom_sizes = config["chrom_sizes"]
-# 	conda:
-# 		"envs/environment.yaml"
-# 	shell:
-# 		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
-# 		"bedtools intersect -g {params.chrom_sizes} -sorted -wa -v -abam {input.bam} -b {params.exonic_bed} | "
-# 		"samtools depth /dev/stdin > {output.depth_out}"
-# 		
-# rule bed_below_n:
-# 	input:
-# 		depth_out = outputdir + "HISAT2/{sample}/{sample}_output.txt",
-# 		script = "scripts/bed_from_areas_covered_N_or_below.py"
-# 	output:
-# 	  bed_below_n = outputdir + "HISAT2/{sample}/{sample}_below_n.bed",
-# 	log:
-# 		outputdir + "logs/bedtools_{sample}.log"
-# 	benchmark:
-# 		outputdir + "benchmarks/bedtools_{sample}.txt"
-# 	threads:
-# 		config["ncores"]
-# 	params:
-# 	  exonic_bed = config["exonic_bed"],
-# 	  n_coverage = config["n_coverage"],
-# 	  chrom_sizes = config["chrom_sizes"]
-# 	conda:
-# 		"envs/environment.yaml"
-# 	shell:
-# 	  "python {input.script} {input.depth_out} {params.n_coverage} > {output.bed_below_n}"
+rule samdepth:
+	input:
+		bam = outputdir + "HISAT2/{sample}/{sample}_Aligned.sortedByCoord.out.bam",
+	output:
+	  depth_out = outputdir + "HISAT2/{sample}/{sample}_output.txt",
+	log:
+		outputdir + "logs/bedtools_{sample}.log"
+	benchmark:
+		outputdir + "benchmarks/bedtools_{sample}.txt"
+	threads:
+		config["ncores"]
+	params:
+	  exonic_bed = config["exonic_bed"],
+	  n_coverage = config["n_coverage"],
+	  chrom_sizes = config["chrom_sizes"]
+	conda:
+		"envs/environment.yaml"
+	shell:
+		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
+		"bedtools intersect -g {params.chrom_sizes} -sorted -wa -v -abam {input.bam} -b {params.exonic_bed} | "
+		"samtools depth /dev/stdin > {output.depth_out}"
+
+rule bed_above_n:
+	input:
+		depth_out = outputdir + "HISAT2/{sample}/{sample}_output.txt",
+		script = "scripts/bed_from_areas_covered_above_N.py"
+	output:
+	  bed_above_n = outputdir + "HISAT2/{sample}/{sample}_above_n.bed",
+	log:
+		outputdir + "logs/bedtools_{sample}.log"
+	benchmark:
+		outputdir + "benchmarks/bedtools_{sample}.txt"
+	threads:
+		config["ncores"]
+	params:
+	  exonic_bed = config["exonic_bed"],
+	  n_coverage = config["n_coverage"],
+	  chrom_sizes = config["chrom_sizes"]
+	conda:
+		"envs/environment.yaml"
+	shell:
+	  "python {input.script} {input.depth_out} {params.n_coverage} > {output.bed_above_n}"
 		
 rule split_exonic:
 	input:
@@ -678,10 +678,30 @@ rule sortpeaks_gdna:
 		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
 		"bedtools sort -i {input.gdna_broadpeaks} > {output.gdna_peak_bed}"
 
-rule exclude_gdna_peaks:
+# rule exclude_gdna_peaks:
+# 	input:
+# 		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna_w_peaks.bam",
+# 		gdna_peak_bed = outputdir + "HISAT2/{sample}/{sample}-gdna.sorted.bed"
+# 	output:
+# 		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bam",
+# 	log:
+# 		outputdir + "logs/bedtools_{sample}.log"
+# 	benchmark:
+# 		outputdir + "benchmarks/bedtools_{sample}.txt"
+# 	threads:
+# 		config["ncores"]
+# 	params:
+# 	  chrom_sizes = config["chrom_sizes"]
+# 	conda:
+# 		"envs/environment.yaml"
+# 	shell:
+# 		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
+# 		"bedtools intersect -wa -v -abam {input.gdna_bam} -b {input.gdna_peak_bed} > {output.gdna_bam}"
+		
+rule exclude_gdna_threshold:
 	input:
 		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna_w_peaks.bam",
-		gdna_peak_bed = outputdir + "HISAT2/{sample}/{sample}-gdna.sorted.bed"
+		bed_above_n = outputdir + "HISAT2/{sample}/{sample}_above_n.bed"
 	output:
 		gdna_bam = outputdir + "HISAT2/{sample}/{sample}-gdna_Aligned.sortedByCoord.gdna.bam",
 	log:
@@ -696,7 +716,7 @@ rule exclude_gdna_peaks:
 		"envs/environment.yaml"
 	shell:
 		"echo 'bedtools version:\n' > {log}; bedtools --version >> {log}; "
-		"bedtools intersect -wa -v -abam {input.gdna_bam} -b {input.gdna_peak_bed} > {output.gdna_bam}"
+		"bedtools intersect -wa -v -abam {input.gdna_bam} -b {input.bed_above_n} > {output.gdna_bam}"
 
 rule split_bamindex:
 	input:
